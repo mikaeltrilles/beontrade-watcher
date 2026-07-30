@@ -5,7 +5,7 @@ import { TOP_LIMIT } from '../lib/constants.js'
 
 /**
  * Hook React Query pour récupérer le top 250 des cryptomonnaies.
- * Tentative dans l'ordre : CoinCap → Coinpaprika → CoinGecko.
+ * Ordre : CoinGecko → CoinCap → Coinpaprika.
  * @param {string} currency
  * @returns {import('@tanstack/react-query').UseQueryResult}
  */

@@ -17,8 +17,8 @@ export function useGlobalData(currency = 'usd') {
       try {
         return await fetchGlobalData()
       } catch (error) {
-        console.warn('CoinGecko global indisponible, approximation depuis CoinCap...', error.message)
-        const assets = await fetchAssetsWithFallback(currency, TOP_LIMIT)
+        console.warn('CoinGecko global indisponible, approximation depuis les sources alternatives...', error.message)
+        const { assets } = await fetchAssetsWithFallback(currency, TOP_LIMIT)
         return computeGlobalDataFromAssets(assets, currency)
       }
     },

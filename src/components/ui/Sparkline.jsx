@@ -3,16 +3,22 @@ import { LineChart, Line, ResponsiveContainer, YAxis } from 'recharts'
 
 /**
  * Mini graphique sparkline pour le tableau.
- * @param {{ data: number[], color?: string, height?: number }} props
+ * @param {{ data: number[], height?: number }} props
  */
-export function Sparkline({ data, color = '#3b82f6', height = 40 }) {
+export function Sparkline({ data, height = 36 }) {
   const chartData = useMemo(() => {
     if (!data || data.length === 0) return []
     return data.map((price, index) => ({ index, price }))
   }, [data])
 
   if (chartData.length === 0) {
-    return <div className="h-full w-full bg-trade-elevated rounded" />
+    return (
+      <div
+        style={{ height }}
+        className="w-full bg-trade-elevated/50 rounded border border-trade-border/50"
+        title="Sparkline non disponible avec cette source"
+      />
+    )
   }
 
   const isPositive = chartData[chartData.length - 1].price >= chartData[0].price

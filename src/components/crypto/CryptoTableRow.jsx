@@ -35,7 +35,19 @@ export function CryptoTableRow({ coin, index, currency, isFavorite, onToggleFavo
             alt={coin.symbol}
             className="h-6 w-6 rounded-full object-contain"
             loading="lazy"
+            onError={(e) => {
+              // Fallback en cas d'image indisponible : lettre initiale sur fond coloré
+              e.target.style.display = 'none'
+              const fallback = e.target.nextElementSibling
+              if (fallback) fallback.style.display = 'flex'
+            }}
           />
+          <div
+            className="h-6 w-6 rounded-full bg-trade-elevated text-trade-text text-xs font-bold items-center justify-center hidden"
+            aria-hidden="true"
+          >
+            {coin.name.charAt(0).toUpperCase()}
+          </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="font-semibold text-trade-text truncate">{coin.name}</span>

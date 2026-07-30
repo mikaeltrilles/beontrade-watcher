@@ -13,7 +13,9 @@ import { CryptoTableRow } from './CryptoTableRow.jsx'
  * @param {{ currency: string, onSelectCoin: (coin: import('../../types/coin.js').Coin) => void }} props
  */
 export function CryptoTable({ currency, onSelectCoin }) {
-  const { data: coins, isLoading, error } = useCoins(currency)
+  const { data: coinsData, isLoading, error } = useCoins(currency)
+  const coins = coinsData?.assets || []
+  const activeSource = coinsData?.source || 'coingecko'
   const { favorites, toggleFavorite, isFavorite } = useFavorites()
 
   const [search, setSearch] = useState('')
@@ -89,6 +91,11 @@ export function CryptoTable({ currency, onSelectCoin }) {
             {isLoading && <Skeleton className="h-5 w-24" />}
             {!isLoading && (
               <span className="text-sm text-trade-muted">{filteredCoins.length} résultats</span>
+            )}
+            {!isLoading && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-trade-elevated text-trade-muted border border-trade-border capitalize">
+                Source : {activeSource}
+              </span>
             )}
           </div>
           <CryptoSearch value={search} onChange={setSearch} />

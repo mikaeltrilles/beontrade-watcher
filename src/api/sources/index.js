@@ -5,6 +5,25 @@ import { convertFromUsd, getUsdToEurRate } from './exchange.js'
 import { TOP_LIMIT } from '../../lib/constants.js'
 
 /**
+ * Récupère une URL d'image fiable pour une crypto à partir de son symbole.
+ * @param {string} symbol
+ * @returns {string}
+ */
+export function getCoinImage(symbol) {
+  return `https://assets.coincap.io/assets/icons/${symbol.toLowerCase()}@2x.png`
+}
+
+/**
+ * Normalise un ID Coinpaprika (ex: btc-bitcoin) vers un ID de type CoinGecko/CoinCap (bitcoin).
+ * @param {string} coinpaprikaId
+ * @returns {string}
+ */
+function normalizeCoinpaprikaId(coinpaprikaId) {
+  const parts = coinpaprikaId.split('-')
+  return parts.length > 1 ? parts.slice(1).join('-') : coinpaprikaId
+}
+
+/**
  * Normalise un asset CoinCap vers le format interne de l'application.
  * @param {Object} asset
  * @param {string} currency
@@ -21,7 +40,7 @@ function normalizeCoinCapAsset(asset, currency, usdToEurRate) {
     id: asset.id,
     symbol: asset.symbol.toLowerCase(),
     name: asset.name,
-    image: `https://assets.coincap.io/assets/icons/${asset.symbol.toLowerCase()}@2x.png`,
+    image: getCoinImage(asset.symbol),
     rank: parseInt(asset.rank, 10),
     current_price: convertFromUsd(priceUsd, currency, usdToEurRate),
     market_cap: convertFromUsd(marketCapUsd, currency, usdToEurRate),
@@ -33,7 +52,8 @@ function normalizeCoinCapAsset(asset, currency, usdToEurRate) {
     price_change_percentage_200d_in_currency: null,
     price_change_percentage_1y_in_currency: null,
     ath_change_percentage: null,
-    sparkline_in_7d: { price: [] }, // CoinCap ne fournit pas de sparkline dans cet endpoint
+    sparkline_in_7d: { price: [] },
+    source: 'coincap',
   }
 }
 
@@ -49,73 +69,98 @@ function normalizeCoinpaprikaTicker(ticker, currency, usdToEurRate) {
   const priceUsd = usd.price || 0
   const marketCapUsd = usd.market_cap || 0
   const volumeUsd = usd.volume_24h || 0
-  const change24h = usd.percent_change_24h !== undefined ? usd.percent_change_24h : null
 
   return {
-    id: ticker.id,
+    id: normalizeCoinpaprikaId(ticker.id),
     symbol: ticker.symbol.toLowerCase(),
     name: ticker.name,
-    image: `https://assets.coincap.io/assets/icons/${ticker.symbol.toLowerCase()}@2x.png`,
+    image: getCoinImage(ticker.symbol),
     rank: ticker.rank,
     current_price: convertFromUsd(priceUsd, currency, usdToEurRate),
     market_cap: convertFromUsd(marketCapUsd, currency, usdToEurRate),
     total_volume: convertFromUsd(volumeUsd, currency, usdToEurRate),
-    price_change_percentage_24h: change24h,
-    price_change_percentage_1h_in_currency: null,
-    price_change_percentage_7d_in_currency: null,
-    price_change_percentage_30d_in_currency: null,
+    price_change_percentage_24h: usd.percent_change_24h !== undefined ? usd.percent_change_24h : null,
+    price_change_percentage_1h_in_currency: usd.percent_change_1h !== undefined ? usd.percent_change_1h : null,
+    price_change_percentage_7d_in_currency: usd.percent_change_7d !== undefined ? usd.percent_change_7d : null,
+    price_change_percentage_30d_in_currency: usd.percent_change_30d !== undefined ? usd.percent_change_30d : null,
     price_change_percentage_200d_in_currency: null,
-    price_change_percentage_1y_in_currency: null,
-    ath_change_percentage: null,
+    price_change_percentage_1y_in_currency: usd.percent_change_1y !== undefined ? usd.percent_change_1y : null,
+    ath_change_percentage: usd.percent_from_price_ath !== undefined ? -Math.abs(usd.percent_from_price_ath) : null,
     sparkline_in_7d: { price: [] },
+    source: 'coinpaprika',
   }
 }
 
 /**
- * Récupère les cryptomonnaies depuis CoinCap avec fallback Coinpaprika puis CoinGecko.
+ * Récupère les cryptomonnaies depuis CoinGecko avec fallback CoinCap puis Coinpaprika.
  * @param {string} currency
  * @param {number} limit
- * @returns {Promise<Array>}
+ * @returns {Promise<{assets: Array, source: string}>}
  */
 export async function fetchAssetsWithFallback(currency = 'usd', limit = TOP_LIMIT) {
   const usdToEurRate = currency.toLowerCase() === 'eur' ? await getUsdToEurRate() : null
 
-  // 1. Essai CoinCap (prioritaire)
+  // 1. CoinGecko : source la plus complète (variations, sparklines, images)
+  try {
+    const assets = await fetchCoinsMarkets(currency, limit, 1)
+    if (assets.length > 0) {
+      return {
+        assets: assets.map((asset) => ({ ...asset, source: 'coingecko' })),
+        source: 'coingecko',
+      }
+    }
+  } catch (error) {
+    console.warn('CoinGecko indisponible, tentative avec CoinCap...', error.message)
+  }
+
+  // 2. Fallback CoinCap
   try {
     const assets = await fetchCoinCapAssets(limit)
     if (assets.length > 0) {
-      const normalized = assets.map((asset) => normalizeCoinCapAsset(asset, currency, usdToEurRate))
-      return addGlobalSparklines(normalized)
+      return {
+        assets: assets.map((asset) => normalizeCoinCapAsset(asset, currency, usdToEurRate)),
+        source: 'coincap',
+      }
     }
   } catch (error) {
     console.warn('CoinCap indisponible, tentative avec Coinpaprika...', error.message)
   }
 
-  // 2. Fallback Coinpaprika
+  // 3. Fallback final Coinpaprika
   try {
     const tickers = await fetchCoinpaprikaTickers()
     const topTickers = tickers.slice(0, limit)
     if (topTickers.length > 0) {
-      const normalized = topTickers.map((ticker) => normalizeCoinpaprikaTicker(ticker, currency, usdToEurRate))
-      return addGlobalSparklines(normalized)
+      return {
+        assets: topTickers.map((ticker) => normalizeCoinpaprikaTicker(ticker, currency, usdToEurRate)),
+        source: 'coinpaprika',
+      }
     }
   } catch (error) {
-    console.warn('Coinpaprika indisponible, tentative avec CoinGecko...', error.message)
+    console.warn('Coinpaprika indisponible...', error.message)
   }
 
-  // 3. Fallback final CoinGecko (le plus complet)
-  return fetchCoinsMarkets(currency, limit, 1)
+  throw new Error('Aucune source de données disponible. Veuillez réessayer plus tard.')
 }
 
 /**
- * Récupère l'historique d'une crypto avec fallback CoinCap puis CoinGecko.
+ * Récupère l'historique d'une crypto avec fallback CoinGecko puis CoinCap.
  * @param {string} coinId
  * @param {string} currency
  * @param {string|number} days
+ * @param {number|null} usdToEurRate
  * @returns {Promise<Array>}
  */
-export async function fetchCoinHistoryWithFallback(coinId, currency = 'usd', days = 30) {
-  // 1. Essai CoinCap
+export async function fetchCoinHistoryWithFallback(coinId, currency = 'usd', days = 30, usdToEurRate = null) {
+  // 1. CoinGecko : le plus complet et compatible avec les IDs normalisés
+  try {
+    const data = await fetchCoinMarketChart(coinId, currency, days)
+    if (data.length > 0) return data
+  } catch (error) {
+    console.warn(`Historique CoinGecko indisponible pour ${coinId}, fallback CoinCap...`, error.message)
+  }
+
+  // 2. Fallback CoinCap (prix en USD à convertir si nécessaire)
   try {
     const interval = Number(days) <= 1 ? 'm30' : Number(days) <= 7 ? 'h1' : 'd1'
     const end = Date.now()
@@ -124,29 +169,14 @@ export async function fetchCoinHistoryWithFallback(coinId, currency = 'usd', day
     if (history.length > 0) {
       return history.map((point) => ({
         date: new Date(point.time).toLocaleDateString(),
-        price: parseFloat(point.priceUsd) || 0,
+        price: convertFromUsd(parseFloat(point.priceUsd) || 0, currency, usdToEurRate),
       }))
     }
   } catch (error) {
-    console.warn(`Historique CoinCap indisponible pour ${coinId}, fallback CoinGecko...`, error.message)
+    console.warn(`Historique CoinCap indisponible pour ${coinId}.`, error.message)
   }
 
-  // 2. Fallback CoinGecko
-  return fetchCoinMarketChart(coinId, currency, days)
-}
-
-/**
- * Génère un sparkline 7 jours approximatif à partir de l'historique disponible.
- * Pour CoinCap : remplit via /history?interval=d1 sur les 7 derniers jours.
- * Cette fonction est coûteuse (250 appels) donc on retourne un tableau vide par défaut
- * et on laisse le composant gérer l'absence de sparkline.
- * @param {Array} assets
- * @returns {Array}
- */
-function addGlobalSparklines(assets) {
-  // CoinCap et Coinpaprika ne fournissent pas de sparkline dans l'endpoint liste.
-  // Pour éviter 250 requêtes supplémentaires, on retourne les assets sans sparkline.
-  return assets
+  throw new Error(`Impossible de récupérer l'historique pour ${coinId}.`)
 }
 
 /**
@@ -170,7 +200,7 @@ export function computeGlobalDataFromAssets(assets, currency = 'usd') {
 
   return {
     active_cryptocurrencies: assets.length,
-    markets: 0, // Non disponible sans API globale
+    markets: 0,
     total_market_cap: { [currency]: totalMarketCap },
     total_volume: { [currency]: totalVolume },
     market_cap_percentage: { btc: totalMarketCap > 0 ? (btcMarketCap / totalMarketCap) * 100 : 0 },
