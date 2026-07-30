@@ -2,7 +2,7 @@ import axios from 'axios'
 
 const coincodexApi = axios.create({
   baseURL: 'https://coincodex.com/api/v1',
-  timeout: 20000,
+  timeout: 15000,
   headers: { Accept: 'application/json' },
 })
 
@@ -20,31 +20,33 @@ const PERIOD_TO_KEY = {
 }
 
 /**
- * Récupère les données de graphique pour un ou plusieurs actifs depuis CoinCodex.
- * @param {string|Array<string>} assetIds - symbole(s) majuscule(s) (ex: BTC, ETH)
+ * Récupère les données de graphique pour un actif depuis CoinCodex.
+ * CoinCodex est la source principale car elle n'impose pas de CORS ni de rate-limit.
+ * @param {string} symbol - symbole majuscule (ex: BTC)
  * @param {string|number} days - 1, 3, 7, 30, 90, 365 ou 'max'
- * @param {string} currency - non utilisé (CoinCodex retourne toujours USD)
+ * @param {string} currency - devise souhaitée (CoinCodex retourne USD, on convertit)
  * @param {number|null} usdToEurRate - taux de conversion si nécessaire
  * @returns {Promise<Array>} - [{date, price}, ...]
  */
-export async function fetchCoincodexHistory(assetIds, days = 30, currency = 'usd', usdToEurRate = null) {
-  const ids = Array.isArray(assetIds) ? assetIds : [assetIds]
+export async function fetchCoincodexHistory(symbol, days = 30, currency = 'usd', usdToEurRate = null) {
+  if (!symbol) throw new Error('Symbole requis pour CoinCodex')
+
   const periodKey = PERIOD_TO_KEY[days] || PERIOD_TO_KEY[30]
+  const upperSymbol = symbol.toUpperCase()
 
   const response = await coincodexApi.get('/assets/get_charts', {
     params: {
-      assets: ids.join(','),
+      assets: upperSymbol,
       charts: periodKey,
       samples: 'sm',
     },
   })
 
   const data = response.data || {}
-  const id = ids[0]
-  const series = data[id]?.[periodKey] || []
+  const series = data[upperSymbol]?.[periodKey] || []
 
   if (!Array.isArray(series) || series.length === 0) {
-    throw new Error(`Aucune donnée CoinCodex pour ${id} (${days}j)`)
+    throw new Error(`Aucune donnée CoinCodex pour ${upperSymbol} (${days}j)`)
   }
 
   const now = Date.now()
@@ -64,15 +66,13 @@ export async function fetchCoincodexHistory(assetIds, days = 30, currency = 'usd
 }
 
 /**
- * Récupère en une seule requête les séries 30D et 1Y pour plusieurs symboles.
+ * Récupère en une seule requête les séries 30D et 1Y pour un lot de symboles.
  * Utilisé pour enrichir les variations mensuelle et annuelle du tableau.
  * @param {Array<string>} symbols - symboles majuscules (ex: ['BTC','ETH'])
- * @param {string} currency
- * @param {number|null} usdToEurRate
  * @returns {Promise<Object>} - { BTC: { '30D': [...], '1Y': [...] }, ... }
  */
-export async function fetchCoincodexMultiCharts(symbols, currency = 'usd', usdToEurRate = null) {
-  if (!symbols.length) return {}
+export async function fetchCoincodexMultiCharts(symbols) {
+  if (!symbols || symbols.length === 0) return {}
 
   const response = await coincodexApi.get('/assets/get_charts', {
     params: {

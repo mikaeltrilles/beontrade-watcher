@@ -17,11 +17,12 @@ import { formatPrice } from '../../lib/formatters.js'
  * Modal affichant le graphique détaillé d'une crypto.
  * @param {{
  *   coin: import('../../types/coin.js').Coin | null,
+ *   allCoins?: Array<import('../../types/coin.js').Coin>,
  *   currency: string,
  *   onClose: () => void
  * }} props
  */
-export function CryptoDetailChart({ coin, currency, onClose }) {
+export function CryptoDetailChart({ coin, allCoins = [], currency, onClose }) {
   const [duration, setDuration] = useState(30)
 
   // Réinitialise la durée à 30 jours quand on change de crypto
@@ -29,7 +30,8 @@ export function CryptoDetailChart({ coin, currency, onClose }) {
     if (coin) setDuration(30)
   }, [coin?.id])
 
-  const { data: chartData, isLoading } = useCoinChart(coin?.id, currency, duration)
+  const coinSymbol = coin?.symbol?.toUpperCase() || coin?.id?.toUpperCase()
+  const { data: chartData, isLoading } = useCoinChart(coin?.id, coinSymbol, currency, duration)
 
   // Ferme la modal avec la touche Échap
   useEffect(() => {

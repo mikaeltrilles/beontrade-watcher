@@ -1,9 +1,12 @@
 import { fetchCoinsMarkets, fetchCoinMarketChart } from '../coingecko.js'
-import { fetchCoinCapAssets, fetchCoinCapHistory } from './coincap.js'
+import { fetchCoinCapAssets } from './coincap.js'
 import { fetchCoinpaprikaTickers } from './coinpaprika.js'
 import { fetchCoincodexHistory, fetchCoincodexMultiCharts, computeCoincodexPercentChange } from './coincodex.js'
 import { convertFromUsd, getUsdToEurRate } from './exchange.js'
 import { TOP_LIMIT } from '../../lib/constants.js'
+
+// Cache en mémoire du mapping id interne → symbole, alimenté par fetchAssetsWithFallback.
+let coinSymbolMapCache = {}
 
 /**
  * Récupère une URL d'image fiable pour une crypto à partir de son symbole.
@@ -108,44 +111,48 @@ function buildCoincodexSymbolMap(assets) {
 }
 
 /**
- * Enrichit les actifs Coinpaprika avec les variations 30j et 1an calculées depuis CoinCodex.
- * Coinpaprika renvoie 0 pour percent_change_30d/1y sur de nombreux actifs ;
- * CoinCodex fournit des séries fiables pour ces périodes.
+ * Enrichit un lot d'actifs avec les variations 30j et 1an calculées depuis CoinCodex.
+ * Traitement par paquets pour éviter les URLs trop longues et les timeouts.
  * @param {Array<Object>} assets
- * @param {string} currency
- * @param {number|null} usdToEurRate
  * @returns {Promise<Array>}
  */
-async function enrichWithCoincodexChanges(assets, currency, usdToEurRate) {
+async function enrichBatchWithCoincodexChanges(assets) {
   const symbolMap = buildCoincodexSymbolMap(assets)
-  const symbols = Object.values(symbolMap)
-  if (symbols.length === 0) return assets
+  const entries = Object.entries(symbolMap)
+  if (entries.length === 0) return assets
 
-  try {
-    const data = await fetchCoincodexMultiCharts(symbols, currency, usdToEurRate)
+  const BATCH_SIZE = 50
+  const results = {}
 
-    return assets.map((asset) => {
-      const symbol = symbolMap[asset.id]
-      if (!symbol || !data[symbol]) return asset
-
-      const series30d = data[symbol]['30D'] || []
-      const series1y = data[symbol]['1Y'] || []
-      const change30d = computeCoincodexPercentChange(series30d)
-      const change1y = computeCoincodexPercentChange(series1y)
-
-      const missing30d = asset.price_change_percentage_30d_in_currency === null || asset.price_change_percentage_30d_in_currency === undefined || asset.price_change_percentage_30d_in_currency === 0
-      const missing1y = asset.price_change_percentage_1y_in_currency === null || asset.price_change_percentage_1y_in_currency === undefined || asset.price_change_percentage_1y_in_currency === 0
-
-      return {
-        ...asset,
-        price_change_percentage_30d_in_currency: missing30d && change30d !== null ? change30d : asset.price_change_percentage_30d_in_currency,
-        price_change_percentage_1y_in_currency: missing1y && change1y !== null ? change1y : asset.price_change_percentage_1y_in_currency,
-      }
-    })
-  } catch (error) {
-    console.warn('Enrichissement CoinCodex indisponible, on conserve les données Coinpaprika.', error.message)
-    return assets
+  for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+    const batch = entries.slice(i, i + BATCH_SIZE)
+    const symbols = batch.map(([, symbol]) => symbol)
+    try {
+      const data = await fetchCoincodexMultiCharts(symbols)
+      Object.assign(results, data)
+    } catch (error) {
+      console.warn(`Enrichissement CoinCodex lot ${i / BATCH_SIZE + 1} indisponible.`, error.message)
+    }
   }
+
+  return assets.map((asset) => {
+    const symbol = symbolMap[asset.id]
+    if (!symbol || !results[symbol]) return asset
+
+    const series30d = results[symbol]['30D'] || []
+    const series1y = results[symbol]['1Y'] || []
+    const change30d = computeCoincodexPercentChange(series30d)
+    const change1y = computeCoincodexPercentChange(series1y)
+
+    const missing30d = asset.price_change_percentage_30d_in_currency === null || asset.price_change_percentage_30d_in_currency === undefined || asset.price_change_percentage_30d_in_currency === 0
+    const missing1y = asset.price_change_percentage_1y_in_currency === null || asset.price_change_percentage_1y_in_currency === undefined || asset.price_change_percentage_1y_in_currency === 0
+
+    return {
+      ...asset,
+      price_change_percentage_30d_in_currency: missing30d && change30d !== null ? change30d : asset.price_change_percentage_30d_in_currency,
+      price_change_percentage_1y_in_currency: missing1y && change1y !== null ? change1y : asset.price_change_percentage_1y_in_currency,
+    }
+  })
 }
 
 /**
@@ -165,7 +172,9 @@ export async function fetchAssetsWithFallback(currency = 'usd', limit = TOP_LIMI
     const topTickers = tickers.slice(0, limit)
     if (topTickers.length > 0) {
       const assets = topTickers.map((ticker) => normalizeCoinpaprikaTicker(ticker, currency, usdToEurRate))
-      const enriched = await enrichWithCoincodexChanges(assets, currency, usdToEurRate)
+      // Met à jour le cache de symboles pour les graphiques individuels
+      coinSymbolMapCache = buildCoincodexSymbolMap(assets)
+      const enriched = await enrichBatchWithCoincodexChanges(assets)
       return {
         assets: enriched,
         source: 'coinpaprika',
@@ -205,59 +214,53 @@ export async function fetchAssetsWithFallback(currency = 'usd', limit = TOP_LIMI
 }
 
 /**
- * Mapping des IDs internes vers les symboles utilisables par CoinCodex (BTC, ETH...).
- * CoinCodex identifie les actifs par leur symbole majuscule.
+ * Récupère le symbole CoinCodex d'un actif à partir de son ID interne.
+ * Recherche d'abord dans la liste des actifs déjà connus (coinListMap),
+ * sinon retourne l'ID en majuscules (best-effort pour BTC, ETH...).
  * @param {string} coinId
+ * @param {Object} coinListMap
  * @returns {string|null}
  */
-function getCoincodexSymbol(coinId) {
-  // La plupart des IDs internes (bitcoin, ethereum...) correspondent au symbole en minuscules.
-  return coinId?.toUpperCase() || null
+function getCoincodexSymbol(coinId, coinListMap = {}) {
+  return coinListMap[coinId]?.toUpperCase() || coinSymbolMapCache[coinId]?.toUpperCase() || coinId?.toUpperCase() || null
 }
 
 /**
- * Récupère l'historique d'une crypto avec fallback CoinGecko → CoinCodex → CoinCap.
- * CoinCodex est privilégié pour les courtes périodes (1j, 3j, 7j, max) car il ne rate-limite pas.
+ * Récupère l'historique d'une crypto avec fallback CoinCodex → CoinGecko.
+ * CoinCodex est la source principale car elle n'impose ni CORS ni rate-limit.
+ * CoinCap n'est plus utilisé car injoignable depuis la production (DNS).
  * @param {string} coinId
  * @param {string} currency
  * @param {string|number} days
  * @param {number|null} usdToEurRate
+ * @param {Object} coinListMap - mapping id interne → symbole
  * @returns {Promise<Array>}
  */
-export async function fetchCoinHistoryWithFallback(coinId, currency = 'usd', days = 30, usdToEurRate = null) {
-  // 1. CoinGecko : le plus complet et compatible avec les IDs normalisés
+export async function fetchCoinHistoryWithFallback(
+  coinId,
+  currency = 'usd',
+  days = 30,
+  usdToEurRate = null,
+  coinListMap = {}
+) {
+  const symbol = getCoincodexSymbol(coinId, coinListMap)
+
+  // 1. CoinCodex en premier : fiable, pas de CORS, pas de rate-limit
+  if (symbol) {
+    try {
+      const data = await fetchCoincodexHistory(symbol, days, currency, usdToEurRate)
+      if (data.length > 0) return data
+    } catch (error) {
+      console.warn(`Historique CoinCodex indisponible pour ${coinId}, fallback CoinGecko...`, error.message)
+    }
+  }
+
+  // 2. Fallback CoinGecko (souvent bloqué/CORS/rate-limité en production)
   try {
     const data = await fetchCoinMarketChart(coinId, currency, days)
     if (data.length > 0) return data
   } catch (error) {
-    console.warn(`Historique CoinGecko indisponible pour ${coinId}, fallback CoinCodex...`, error.message)
-  }
-
-  // 2. Fallback CoinCodex (BTC, ETH...) — pas de rate-limit, idéal pour 1j/3j/7j/max
-  const coincodexSymbol = getCoincodexSymbol(coinId)
-  if (coincodexSymbol) {
-    try {
-      const data = await fetchCoincodexHistory(coincodexSymbol, days, currency, usdToEurRate)
-      if (data.length > 0) return data
-    } catch (error) {
-      console.warn(`Historique CoinCodex indisponible pour ${coinId}, fallback CoinCap...`, error.message)
-    }
-  }
-
-  // 3. Fallback final CoinCap (prix en USD à convertir si nécessaire)
-  try {
-    const interval = Number(days) <= 1 ? 'm30' : Number(days) <= 7 ? 'h1' : 'd1'
-    const end = Date.now()
-    const start = end - Number(days) * 24 * 60 * 60 * 1000
-    const history = await fetchCoinCapHistory(coinId, interval, start, end)
-    if (history.length > 0) {
-      return history.map((point) => ({
-        date: new Date(point.time).toLocaleDateString(),
-        price: convertFromUsd(parseFloat(point.priceUsd) || 0, currency, usdToEurRate),
-      }))
-    }
-  } catch (error) {
-    console.warn(`Historique CoinCap indisponible pour ${coinId}.`, error.message)
+    console.warn(`Historique CoinGecko indisponible pour ${coinId}.`, error.message)
   }
 
   throw new Error(`Impossible de récupérer l'historique pour ${coinId}.`)
