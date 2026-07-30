@@ -1,6 +1,5 @@
 import { Star, ExternalLink, BarChart3 } from 'lucide-react'
 import { Badge } from '../ui/Badge.jsx'
-import { Sparkline } from '../ui/Sparkline.jsx'
 import { formatPrice, formatCompactCurrency } from '../../lib/formatters.js'
 
 /**
@@ -108,10 +107,6 @@ export function CryptoTableRow({ coin, index, currency, isFavorite, onToggleFavo
       </td>
       <td className="py-2 px-2 text-xs text-right text-trade-text">
         {formatCompactCurrency(coin.total_volume, currency)}
-      </td>
-
-      <td className="py-2 px-2 text-xs w-[90px] min-w-[90px]">
-        <Sparkline data={coin.sparkline_in_7d?.price} height={36} />
       </td>
     </tr>
   )

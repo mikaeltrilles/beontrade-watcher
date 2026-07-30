@@ -14,7 +14,6 @@ export const COLUMNS = [
   { key: 'ath_change_percentage', label: 'ATH', sortable: true, align: 'right' },
   { key: 'market_cap', label: 'Market Cap', sortable: true, align: 'right' },
   { key: 'total_volume', label: 'Volume', sortable: true, align: 'right' },
-  { key: 'sparkline', label: '7j', sortable: false, align: 'center' },
 ]
 
 /**
