@@ -8,7 +8,8 @@ import { isStableCoin } from '../../lib/stablecoins.js'
  * @param {{ currency: string }} props
  */
 export function MarketChart({ currency }) {
-  const { data: coins, isLoading } = useCoins(currency)
+  const { data: coinsData, isLoading } = useCoins(currency)
+  const coins = coinsData?.assets || []
 
   const data = useMemo(() => {
     if (!coins || coins.length === 0) return []

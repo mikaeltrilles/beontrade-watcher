@@ -92,7 +92,9 @@ function normalizeCoinpaprikaTicker(ticker, currency, usdToEurRate) {
 }
 
 /**
- * Récupère les cryptomonnaies depuis CoinGecko avec fallback CoinCap puis Coinpaprika.
+ * Récupère les cryptomonnaies depuis Coinpaprika avec fallback CoinGecko.
+ * CoinGecko est très complet mais souvent rate-limité/CORS en production,
+ * donc on privilégie d'abord les sources à limites souples.
  * @param {string} currency
  * @param {number} limit
  * @returns {Promise<{assets: Array, source: string}>}
@@ -100,7 +102,21 @@ function normalizeCoinpaprikaTicker(ticker, currency, usdToEurRate) {
 export async function fetchAssetsWithFallback(currency = 'usd', limit = TOP_LIMIT) {
   const usdToEurRate = currency.toLowerCase() === 'eur' ? await getUsdToEurRate() : null
 
-  // 1. CoinGecko : source la plus complète (variations, sparklines, images)
+  // 1. Coinpaprika : limites souples (10 req/s), données complètes
+  try {
+    const tickers = await fetchCoinpaprikaTickers()
+    const topTickers = tickers.slice(0, limit)
+    if (topTickers.length > 0) {
+      return {
+        assets: topTickers.map((ticker) => normalizeCoinpaprikaTicker(ticker, currency, usdToEurRate)),
+        source: 'coinpaprika',
+      }
+    }
+  } catch (error) {
+    console.warn('Coinpaprika indisponible, tentative avec CoinGecko...', error.message)
+  }
+
+  // 2. Fallback CoinGecko (le plus complet)
   try {
     const assets = await fetchCoinsMarkets(currency, limit, 1)
     if (assets.length > 0) {
@@ -113,7 +129,7 @@ export async function fetchAssetsWithFallback(currency = 'usd', limit = TOP_LIMI
     console.warn('CoinGecko indisponible, tentative avec CoinCap...', error.message)
   }
 
-  // 2. Fallback CoinCap
+  // 3. Fallback final CoinCap
   try {
     const assets = await fetchCoinCapAssets(limit)
     if (assets.length > 0) {
@@ -123,21 +139,7 @@ export async function fetchAssetsWithFallback(currency = 'usd', limit = TOP_LIMI
       }
     }
   } catch (error) {
-    console.warn('CoinCap indisponible, tentative avec Coinpaprika...', error.message)
-  }
-
-  // 3. Fallback final Coinpaprika
-  try {
-    const tickers = await fetchCoinpaprikaTickers()
-    const topTickers = tickers.slice(0, limit)
-    if (topTickers.length > 0) {
-      return {
-        assets: topTickers.map((ticker) => normalizeCoinpaprikaTicker(ticker, currency, usdToEurRate)),
-        source: 'coinpaprika',
-      }
-    }
-  } catch (error) {
-    console.warn('Coinpaprika indisponible...', error.message)
+    console.warn('CoinCap indisponible...', error.message)
   }
 
   throw new Error('Aucune source de données disponible. Veuillez réessayer plus tard.')
