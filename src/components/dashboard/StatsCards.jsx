@@ -29,7 +29,7 @@ export function StatsCards({ currency }) {
         icon={<BarChart3 size={20} />}
         isLoading={isLoading}
       >
-        {stats && (
+        {stats && stats.marketCapChange !== null && (
           <span className={`text-xs ${stats.marketCapChange >= 0 ? 'text-trade-up' : 'text-trade-down'}`}>
             {formatPercent(stats.marketCapChange)} / 24h
           </span>
