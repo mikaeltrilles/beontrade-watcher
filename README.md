@@ -70,7 +70,7 @@ npm run preview
 
 ## Déploiement sur o2switch
 
-Le projet inclut un script de déploiement `deploy.sh` qui construit l’application puis synchronise le dossier `dist/` sur le serveur o2switch via rsync.
+Le projet inclut un script de déploiement `deploy.sh` qui construit l’application puis synchronise le dossier `dist/` sur le serveur o2switch.
 
 ```bash
 ./deploy.sh
@@ -79,7 +79,9 @@ Le projet inclut un script de déploiement `deploy.sh` qui construit l’applica
 Le script exécute automatiquement :
 
 1. La commande `npm run build`.
-2. La synchronisation rsync vers `vote1550@109.234.165.174:/home/vote1550/beontrade.tmktools.com/`.
+2. La synchronisation vers `vote1550@109.234.165.174:/home/vote1550/beontrade.tmktools.com/`.
+
+Sur macOS / Linux, il utilise `rsync`. Sur Windows, si `rsync` n’est pas disponible, il passe automatiquement par `ssh` + `scp`.
 
 ## Configuration
 
