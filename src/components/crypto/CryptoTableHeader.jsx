@@ -7,6 +7,7 @@ export const COLUMNS = [
   { key: 'current_price', label: 'Prix', sortable: true, align: 'right' },
   { key: 'price_change_percentage_1h_in_currency', label: '1h', sortable: true, align: 'right' },
   { key: 'price_change_percentage_24h', label: '24h', sortable: true, align: 'right' },
+  { key: 'price_change_percentage_7d_in_currency', label: '7j', sortable: true, align: 'right' },
   { key: 'price_change_percentage_30d_in_currency', label: '1m', sortable: true, align: 'right' },
   { key: 'price_change_percentage_1y_in_currency', label: '1a', sortable: true, align: 'right' },
   { key: 'ath_change_percentage', label: 'ATH', sortable: true, align: 'right' },

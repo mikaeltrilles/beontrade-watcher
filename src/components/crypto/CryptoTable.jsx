@@ -51,12 +51,18 @@ export function CryptoTable({ currency, onSelectCoin }) {
       result = result.filter((coin) => favorites.includes(coin.id))
     }
 
-    // Tri
+    // Tri robuste : les valeurs manquantes (null/undefined) restent toujours en bas,
+    // quel que soit le sens du tri, pour ne pas polluer le classement.
     result = [...result].sort((a, b) => {
-      const aValue = a[sortKey] ?? -Infinity
-      const bValue = b[sortKey] ?? -Infinity
-      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1
-      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1
+      const aRaw = a[sortKey]
+      const bRaw = b[sortKey]
+      const aMissing = aRaw === null || aRaw === undefined
+      const bMissing = bRaw === null || bRaw === undefined
+      if (aMissing && bMissing) return 0
+      if (aMissing) return 1
+      if (bMissing) return -1
+      if (aRaw < bRaw) return sortDirection === 'asc' ? -1 : 1
+      if (aRaw > bRaw) return sortDirection === 'asc' ? 1 : -1
       return 0
     })
 

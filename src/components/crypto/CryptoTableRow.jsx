@@ -83,6 +83,9 @@ export function CryptoTableRow({ coin, index, currency, isFavorite, onToggleFavo
         <Badge value={coin.price_change_percentage_24h} />
       </td>
       <td className="py-2 px-2 text-xs text-right">
+        <Badge value={coin.price_change_percentage_7d_in_currency} />
+      </td>
+      <td className="py-2 px-2 text-xs text-right">
         <Badge value={coin.price_change_percentage_30d_in_currency} />
       </td>
       <td className="py-2 px-2 text-xs text-right">
