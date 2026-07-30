@@ -92,7 +92,7 @@ export function CryptoTableRow({ coin, index, currency, isFavorite, onToggleFavo
         <Badge value={coin.price_change_percentage_1y_in_currency} />
       </td>
       <td className="py-2 px-2 text-xs text-right">
-        {coin.ath_change_percentage && coin.ath_change_percentage > -2 ? (
+        {typeof coin.ath_change_percentage === 'number' && coin.ath_change_percentage > -2 ? (
           <span className="text-yellow-400 font-semibold">ATH !</span>
         ) : (
           <Badge value={coin.ath_change_percentage} />
