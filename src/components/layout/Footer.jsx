@@ -10,7 +10,7 @@ export function Footer() {
 
   return (
     <footer className="mt-auto bg-trade-surface border-t border-trade-border py-6">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
         <p className="text-sm text-trade-muted">
           Beontrade Watcher — Données fournies par CoinGecko
         </p>

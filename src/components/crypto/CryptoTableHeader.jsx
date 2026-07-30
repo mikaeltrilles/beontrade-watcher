@@ -32,7 +32,7 @@ export function CryptoTableHeader({ sortKey, sortDirection, onSort }) {
               key={column.key}
               onClick={() => column.sortable && onSort(column.key)}
               className={`
-                py-3 px-3 font-semibold whitespace-nowrap select-none
+                py-2 px-2 font-semibold whitespace-nowrap select-none text-[11px]
                 ${column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : 'text-left'}
                 ${column.sortable ? 'cursor-pointer hover:text-trade-text transition-colors' : ''}
               `}

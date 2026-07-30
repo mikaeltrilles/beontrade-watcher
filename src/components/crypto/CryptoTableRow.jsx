@@ -19,9 +19,9 @@ export function CryptoTableRow({ coin, index, currency, isFavorite, onToggleFavo
 
   return (
     <tr className="border-b border-trade-border hover:bg-trade-elevated/50 transition-colors">
-      <td className="py-3 px-3 text-trade-muted">{index + 1}</td>
+      <td className="py-2 px-2 text-xs text-trade-muted">{index + 1}</td>
 
-      <td className="py-3 px-3">
+      <td className="py-2 px-2 text-xs">
         <div className="flex items-center gap-3">
           <button
             onClick={onToggleFavorite}
@@ -33,11 +33,11 @@ export function CryptoTableRow({ coin, index, currency, isFavorite, onToggleFavo
           <img
             src={coin.image}
             alt={coin.symbol}
-            className="h-7 w-7 rounded-full object-contain"
+            className="h-6 w-6 rounded-full object-contain"
             loading="lazy"
           />
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span className="font-semibold text-trade-text truncate">{coin.name}</span>
               <a
                 href={coingeckoUrl}
@@ -61,29 +61,29 @@ export function CryptoTableRow({ coin, index, currency, isFavorite, onToggleFavo
         </div>
       </td>
 
-      <td className="py-3 px-3 text-right font-medium text-trade-text">
+      <td className="py-2 px-2 text-xs text-right font-medium text-trade-text">
         {formatPrice(coin.current_price, currency)}
       </td>
 
-      <td className="py-3 px-3 text-right">
+      <td className="py-2 px-2 text-xs text-right">
         <Badge value={coin.price_change_percentage_1h_in_currency} />
       </td>
-      <td className="py-3 px-3 text-right">
+      <td className="py-2 px-2 text-xs text-right">
         <Badge value={coin.price_change_percentage_24h} />
       </td>
-      <td className="py-3 px-3 text-right">
+      <td className="py-2 px-2 text-xs text-right">
         <Badge value={coin.price_change_percentage_7d_in_currency} />
       </td>
-      <td className="py-3 px-3 text-right">
+      <td className="py-2 px-2 text-xs text-right">
         <Badge value={coin.price_change_percentage_30d_in_currency} />
       </td>
-      <td className="py-3 px-3 text-right">
+      <td className="py-2 px-2 text-xs text-right">
         <Badge value={coin.price_change_percentage_200d_in_currency} />
       </td>
-      <td className="py-3 px-3 text-right">
+      <td className="py-2 px-2 text-xs text-right">
         <Badge value={coin.price_change_percentage_1y_in_currency} />
       </td>
-      <td className="py-3 px-3 text-right">
+      <td className="py-2 px-2 text-xs text-right">
         {coin.ath_change_percentage && coin.ath_change_percentage > -2 ? (
           <span className="text-yellow-400 font-semibold">ATH !</span>
         ) : (
@@ -91,15 +91,15 @@ export function CryptoTableRow({ coin, index, currency, isFavorite, onToggleFavo
         )}
       </td>
 
-      <td className="py-3 px-3 text-right text-trade-text">
+      <td className="py-2 px-2 text-xs text-right text-trade-text">
         {formatCompactCurrency(coin.market_cap, currency)}
       </td>
-      <td className="py-3 px-3 text-right text-trade-text">
+      <td className="py-2 px-2 text-xs text-right text-trade-text">
         {formatCompactCurrency(coin.total_volume, currency)}
       </td>
 
-      <td className="py-3 px-3">
-        <Sparkline data={coin.sparkline_in_7d?.price} height={40} />
+      <td className="py-2 px-2 text-xs w-[90px] min-w-[90px]">
+        <Sparkline data={coin.sparkline_in_7d?.price} height={36} />
       </td>
     </tr>
   )

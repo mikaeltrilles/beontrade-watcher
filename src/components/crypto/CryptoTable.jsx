@@ -106,8 +106,8 @@ export function CryptoTable({ currency, onSelectCoin }) {
         />
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[1000px]">
+      <div className="overflow-x-auto lg:overflow-visible">
+        <table className="w-full lg:min-w-0 min-w-[1100px]">
           <CryptoTableHeader sortKey={sortKey} sortDirection={sortDirection} onSort={handleSort} />
           <tbody className="text-sm">
             {isLoading ? (
